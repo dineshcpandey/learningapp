@@ -141,15 +141,8 @@ alter table question_families  enable row level security;
 alter table questions          enable row level security;
 alter table question_options   enable row level security;
 
--- Helper function: returns the caller's role (avoids per-policy sub-selects).
-create or replace function current_user_role()
-returns text
-language sql
-stable
-security definer set search_path = public
-as $$
-  select role from profiles where id = auth.uid();
-$$;
+-- current_user_role() is defined in 0003b_role_helper_and_syllabus_write_rls.sql
+-- (must run before this migration).
 
 -- ── misconceptions ────────────────────────────────────────────────────────────
 -- Students can read misconceptions (needed for remediation display).

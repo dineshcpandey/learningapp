@@ -1,5 +1,8 @@
 -- Migration: 0002_syllabus.sql
 -- Syllabus structure: subjects, chapters, topics, topic prerequisites.
+-- RLS: read policies only (open to all).
+-- Write policies are in 0003b_role_helper_and_syllabus_write_rls.sql,
+-- which runs after profiles and current_user_role() exist.
 
 -- ── Subjects ──────────────────────────────────────────────────────────────────
 create table subjects (
@@ -33,88 +36,17 @@ create table topic_prerequisites (
   check (topic_id <> requires_topic_id)   -- a topic cannot require itself
 );
 
--- ── RLS ───────────────────────────────────────────────────────────────────────
-alter table subjects           enable row level security;
-alter table chapters           enable row level security;
-alter table topics             enable row level security;
+-- ── RLS — enable on all tables ────────────────────────────────────────────────
+alter table subjects            enable row level security;
+alter table chapters            enable row level security;
+alter table topics              enable row level security;
 alter table topic_prerequisites enable row level security;
 
--- Syllabus is read-only for all authenticated users (and anon for guest mode).
-create policy "syllabus_read_all"
-  on subjects for select using (true);
+-- Read policies: syllabus is public (supports guest mode).
+create policy "syllabus_read_all" on subjects           for select using (true);
+create policy "syllabus_read_all" on chapters           for select using (true);
+create policy "syllabus_read_all" on topics             for select using (true);
+create policy "syllabus_read_all" on topic_prerequisites for select using (true);
 
-create policy "syllabus_read_all"
-  on chapters for select using (true);
-
-create policy "syllabus_read_all"
-  on topics for select using (true);
-
-create policy "syllabus_read_all"
-  on topic_prerequisites for select using (true);
-
--- Only admin can modify syllabus.
-create policy "syllabus_admin_insert"
-  on subjects for insert
-  with check (
-    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-  );
-
-create policy "syllabus_admin_update"
-  on subjects for update
-  using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-  );
-
-create policy "syllabus_admin_delete"
-  on subjects for delete
-  using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-  );
-
-create policy "syllabus_admin_insert"
-  on chapters for insert
-  with check (
-    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-  );
-
-create policy "syllabus_admin_update"
-  on chapters for update
-  using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-  );
-
-create policy "syllabus_admin_delete"
-  on chapters for delete
-  using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-  );
-
-create policy "syllabus_admin_insert"
-  on topics for insert
-  with check (
-    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-  );
-
-create policy "syllabus_admin_update"
-  on topics for update
-  using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-  );
-
-create policy "syllabus_admin_delete"
-  on topics for delete
-  using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-  );
-
-create policy "syllabus_admin_insert"
-  on topic_prerequisites for insert
-  with check (
-    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-  );
-
-create policy "syllabus_admin_delete"
-  on topic_prerequisites for delete
-  using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-  );
+-- Write policies are deferred to 0003b_role_helper_and_syllabus_write_rls.sql
+-- because they depend on current_user_role(), which requires profiles to exist.
