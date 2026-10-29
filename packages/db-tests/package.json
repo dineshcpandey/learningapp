@@ -1,0 +1,21 @@
+{
+  "name": "@learning-app/db-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Database RLS and trigger tests",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.11",
+    "@supabase/supabase-js": "^2.45.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5",
+    "@vitest/coverage-v8": "^2.0.5",
+    "dotenv": "^16.4.5"
+  }
+}

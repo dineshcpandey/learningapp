@@ -1,0 +1,134 @@
+Functional Components
+
+I’d split it into eight components. Each has a clear contract with the others, so a code assistant or a developer can work on one without touching the rest.
+
+#	Component	Responsibility	Depends on
+1	Data layer	Schema, migrations, RLS, seed data, generated types	none
+2	Selector engine	Picks the next batch: unseen guarantee, misconception targeting, spaced review, pool-exhaustion fallbacks	1 (types only)
+3	Learning state engine	Processes answers: adaptive level, chapter score, misconception hits and resolution, review queue scheduling, XP and streak	1
+4	Quiz API	Session start and end, next batch, attempt sync (idempotent), progress, reports; wires 2 and 3 to the database	1, 2, 3
+5	Student client	Onboarding, quiz screen, feedback, summary, progress home, PWA, local attempt queue	4 (contract only)
+6	Content pipeline	Question JSON format, validation script, import, duplicate detection, AI-draft prompt	1
+7	Admin panel	Question editor, review workflow, flagged-question view, pool depth report	1, 6
+8	Quality and analytics	Question stats view, auto-flag rules, event tracking, health metrics	1, 4
+Why this split works
+Selector (2) and learning state (3) are pure logic with no database access. They take data in and return decisions, so they can be fully unit tested with simulated students. This is your core differentiator, so keep it isolated and heavily tested.
+The API (4) is the only place that talks to both the logic and the database, so the engines stay clean.
+Content (6) is a separate track from code. It can start on day one and runs in parallel for the whole project, because content volume is your real bottleneck.
+Contracts to define before anyone starts
+
+Agreeing on these up front is what makes parallel work possible:
+
+Database schema (component 1 owns it).
+Question JSON format (shared by 6, 7 and the seed data).
+API request and response shapes, written as TypeScript types or an OpenAPI file, so the client (5) can be built against a mock API before the real one exists.
+Selector interface: selectBatch(studentState, candidatePools) → questionIds.
+Learning state interface: applyAnswer(studentState, attempt) → updatedState.
+Suggested build order
+Phase A (parallel):  1 Data layer  ──┬──►  2 Selector  ──┐
+                     6 Content       │     3 State  ─────┤
+                       pipeline      │                   ▼
+                                     └──────────────►  4 API
+Phase B (parallel):  5 Student client (against mock API)  ┐
+                     7 Admin panel                        ├─► Integrate
+                     8 Quality + analytics                ┘
+Phase A: the data layer comes first (a day or two). Then the selector, state engine and content pipeline can all proceed in parallel.
+Phase B: once the API contract is fixed, the client, admin panel and analytics are independent of each other.
+Integration: swap the mock API for the real one and run the end-to-end quiz test.
+If you’re working with one code assistant
+
+Sequential is simpler, so use this order: 1 → 2 and 3 → 4 → 6 → 5 → 7 → 8. The reason for putting the client after the content pipeline is that you’ll want real sample questions to test the quiz feel.
+
+Two cross-cutting concerns don’t belong to any single component but need an owner: auth and privacy (consent, delete-my-data, RLS) and deployment (environments, CI, secrets). Assign them to component 1 and 4 respectively.
+
+The milestones in the spec map onto this: M1 is component 1, M2 is components 2 and 3, M3 is component 4, M4 is component 5, M5 is components 6 and 7, and M6 is component 8 plus privacy. Want me to turn each component into a standalone brief, with its inputs, outputs, tests and acceptance criteria, so you can hand them out one at a time?
+
+
+Mobile App Considerations
+
+The biggest implication is that my earlier spec assumed a PWA, so the client stack (Section 3 and 8 of the spec) needs to change. Everything else (database, selector, learning state, API, admin panel) stays as it is. Here is what to decide early.
+
+1. Choose the client framework now
+Option	Pros	Cons
+React Native (Expo)	One codebase for both stores; the TypeScript selector and state packages can be shared; over-the-air updates for small fixes	Native modules occasionally need care
+Flutter	Very consistent UI and good performance on low-end phones	Dart, so the TypeScript logic can’t be shared; you’d run the selector on the server only
+Wrap the web app (Capacitor)	Fastest, reuses the PWA	Apple can reject thin web wrappers; feels less native, weaker offline
+
+I’d pick React Native with Expo, since it fits the architecture you already have. If you go Flutter, keep selector logic strictly server-side.
+
+2. Children’s privacy rules are the biggest risk
+
+Your users are roughly 10 to 15, so both stores’ child-safety rules apply from day one.
+
+Google Play: any app with at least one target audience age group that includes children must comply with the Families Policy Requirements, including using only Families Self-Certified Ads SDKs, and it must have a privacy policy. For apps aimed solely at children, the AD_ID permission should not be requested when targeting Android API 33 or higher. 
+Manage target audience and app content settings
+ +2
+Apple: the Kids Category has historically restricted third-party analytics. A later revision softened the wording so third-party analytics may be permitted in limited cases, as long as no personally identifiable information or device fingerprinting data goes to third parties. There are reports that Apple has since tightened rules on age-gating and SDKs that collect device identifiers, even crash reporters. I’d treat that last source as unconfirmed and check Apple’s current guidelines directly. 
+TechCrunch
+appsops
+Age ratings: Apple has added 13+, 16+ and 18+ tiers and a new required questionnaire in App Store Connect, and offers a Declared Age Range API that lets developers get age information from parental input. 
+mactrast
+TechCrunch
+
+What this means for your build:
+
+Audit every SDK (analytics, crash reporting, push, payments) for device-ID collection before adding it. My spec listed PostHog; self-hosting it or using a minimal first-party event table is safer.
+Decide early whether you declare the app as child-directed or general audience. It shapes everything else, and you should take legal advice, particularly for India’s DPDP rules on parental consent.
+No third-party ad SDKs. Monetise through subscriptions only.
+Collect the minimum: nickname, class, parent contact.
+3. Store requirements that affect your design
+
+These are standard requirements I know of, but check current versions before you build:
+
+In-app account deletion is required by both stores, so build “delete my data” into the app, not just a web form.
+Sign in with Apple is required if you offer other social logins. Phone OTP or email avoids this.
+Digital subscriptions must use each store’s billing, so use Google Play Billing and Apple in-app purchase (RevenueCat simplifies both). Put a parental gate before any purchase screen.
+Data safety and privacy label forms must match what your app actually collects.
+New Play developer accounts have had testing requirements before production release, so start the account early.
+4. Offline-first on Indian networks
+
+Many students will have patchy or metered data, so this moves from nice-to-have to core.
+
+Use a local SQLite database (WatermelonDB or expo-sqlite) holding the prefetched batch, the attempt queue and cached progress.
+Prefetch 2 batches, not 1, and fetch in the background on Wi-Fi where possible.
+Attempts are already idempotent by client-generated ID, which now becomes essential for retries after dropped connections.
+Handle app kills mid-quiz: persist session state after every answer.
+Show sync status calmly; never block a quiz on the network.
+Keep payloads small (compress, send only needed fields) and watch total app size.
+5. Low-end Android is your main audience
+Test on 2 to 3 GB RAM phones with older Android versions, not just a flagship.
+Keep the app size small (target under about 30 MB), avoid heavy animation libraries, and defer large assets.
+Mind battery and background sync limits (Android restricts background work aggressively).
+Plan for annual target-API-level updates on Google Play.
+6. Quiz-specific mobile issues
+Math rendering: fractions, exponents, roots and equations need a proper renderer (KaTeX-style or a native math view). Decide this before writing content, because it affects the question format. Store math in a consistent markup (e.g. LaTeX) in the body and options fields.
+Input: MCQ taps are easy, but numeric-answer questions later need a custom math keypad.
+Large tap targets, one-handed use, support for small screens and tablets, dark mode, and font scaling.
+Safe handling of interruptions: calls, backgrounding, rotation.
+7. Versioning and release management
+
+Old app versions live on users’ phones for months, which web apps don’t have to worry about.
+
+Version the API (/v1/) and never break it. Support at least the last 2 to 3 app versions.
+Add a minimum supported version check and a gentle “please update” screen.
+Use remote config / feature flags to switch features off without a release (e.g. the VALIDATE_ON_SERVER flag).
+Staged rollouts (5%, then 25%, then 100%) on both stores, with crash monitoring.
+Allow for store review time (Apple can take 1 to 3 days; plan hotfix paths).
+Content versioning you already have becomes more important, since fixed questions must reach old app versions too.
+8. Notifications and engagement
+
+Streak reminders are your best retention tool, but for minors:
+
+Ask notification permission after the first successful session, not at launch.
+Respect quiet hours, no pressure or guilt copy, easy opt-out, and a parent-controlled setting.
+Use FCM for Android and APNs for iOS, via a service that doesn’t harvest identifiers.
+9. Security
+Never ship API keys or service-role keys in the app; use row-level security and short-lived tokens.
+Token refresh must work after long offline periods.
+If you later add leaderboards or timed challenges, validate answers on the server, because anything in the app bundle or payload can be inspected.
+Suggested changes to the spec
+Replace Next.js PWA with React Native (Expo) for the student client, keeping /admin as a web app.
+Add offline storage and an attempt-sync queue to the client requirements.
+Replace PostHog with a privacy-safe analytics approach, and add an SDK audit step.
+Add API versioning, a minimum-version check and remote config.
+Add a store-compliance checklist (privacy policy, data safety form, age rating, in-app deletion, parental gate) as its own milestone.
