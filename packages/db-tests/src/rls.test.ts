@@ -37,7 +37,7 @@ const maybeIt = SKIP ? it.skip : it;
 const maybeDescribe = SKIP ? describe.skip : describe;
 
 // Seed UUIDs (from 003_questions.sql / 001_syllabus.sql)
-const LIVE_QUESTION_ID = 'Q0000001-0000-0000-0000-000000000001';
+const LIVE_QUESTION_ID = 'a0000001-0000-0000-0000-000000000001';
 const CHAPTER_ID = '10000000-0000-0000-0000-000000000002';
 
 // ── Test state ────────────────────────────────────────────────────────────────
