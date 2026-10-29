@@ -8,6 +8,10 @@
 -- All questions are seeded with status = 'live' so RLS tests can work immediately.
 -- Fixed UUIDs throughout for idempotency.
 
+
+set search_path to learning, public;
+
+
 -- ═════════════════════════════════════════════════════════════════════════════
 -- Question families
 -- ═════════════════════════════════════════════════════════════════════════════

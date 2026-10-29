@@ -4,6 +4,10 @@
 --
 -- NOTE: This seed uses fixed UUIDs so subsequent seed runs are idempotent.
 
+
+set search_path to learning, public;
+
+
 -- ── Subject ───────────────────────────────────────────────────────────────────
 insert into subjects (id, name) values
   ('00000000-0000-0000-0000-000000000001', 'Maths')

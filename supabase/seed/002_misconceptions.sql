@@ -2,6 +2,10 @@
 -- 15 misconceptions across the pilot topics.
 -- Fixed UUIDs for idempotency.
 
+
+set search_path to learning, public;
+
+
 insert into misconceptions (id, topic_id, description, remediation_note) values
 
   -- ── Linear Equations – one side (topic 010) ──────────────────────────────
